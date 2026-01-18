@@ -1,0 +1,11 @@
+# =============================================================================
+# QA Namespace
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-qa
+  labels:
+    name: ns-qa
+    environment: qa
+    app.kubernetes.io/part-of: intelfoundry

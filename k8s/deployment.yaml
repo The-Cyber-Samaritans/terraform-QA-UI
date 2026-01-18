@@ -1,0 +1,84 @@
+# =============================================================================
+# QA UI Deployment
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qa-ui
+  namespace: ns-qa
+  labels:
+    app: qa-ui
+    environment: qa
+    app.kubernetes.io/name: qa-ui
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: intelfoundry
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: qa-ui
+      environment: qa
+  template:
+    metadata:
+      labels:
+        app: qa-ui
+        environment: qa
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+    spec:
+      containers:
+        - name: qa-ui
+          # Image will be updated by CI/CD pipeline
+          image: ${ECR_REPOSITORY_URL}:qa-latest
+          ports:
+            - containerPort: 80
+              name: http
+              protocol: TCP
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: qa-ui
+                    environment: qa
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: qa-ui
+              environment: qa

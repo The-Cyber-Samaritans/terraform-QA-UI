@@ -1,0 +1,160 @@
+# =============================================================================
+# Cloudflared Tunnel for QA UI
+# =============================================================================
+# Exposes qa-cloud.intelfoundry.onceamerican.com via Cloudflare Tunnel
+#
+# Prerequisites:
+# 1. Create a Cloudflare Tunnel in the Cloudflare dashboard or via API
+# 2. Configure the tunnel to route qa-cloud.intelfoundry.onceamerican.com -> http://qa-ui.ns-qa.svc.cluster.local:80
+# 3. Store the tunnel token in the secret below
+# =============================================================================
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflared-qa-tunnel-token
+  namespace: ns-qa
+  labels:
+    app: cloudflared
+    environment: qa
+type: Opaque
+stringData:
+  # Replace with your actual Cloudflare Tunnel token
+  # Get this from: cloudflared tunnel token <tunnel-name>
+  # Or from Cloudflare API when creating the tunnel
+  token: "${CLOUDFLARE_TUNNEL_TOKEN}"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared-qa
+  namespace: ns-qa
+  labels:
+    app: cloudflared
+    environment: qa
+    app.kubernetes.io/name: cloudflared
+    app.kubernetes.io/component: tunnel
+    app.kubernetes.io/part-of: intelfoundry
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudflared
+      environment: qa
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+        environment: qa
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "2000"
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          args:
+            - tunnel
+            - --no-autoupdate
+            - --metrics
+            - 0.0.0.0:2000
+            - run
+            - --token
+            - $(TUNNEL_TOKEN)
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-qa-tunnel-token
+                  key: token
+          ports:
+            - containerPort: 2000
+              name: metrics
+              protocol: TCP
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop:
+                - ALL
+      securityContext:
+        fsGroup: 65532
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: cloudflared
+                    environment: qa
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: cloudflared
+              environment: qa
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudflared-metrics
+  namespace: ns-qa
+  labels:
+    app: cloudflared
+    environment: qa
+spec:
+  selector:
+    app: cloudflared
+    environment: qa
+  ports:
+    - name: metrics
+      port: 2000
+      targetPort: 2000
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cloudflared-pdb
+  namespace: ns-qa
+  labels:
+    app: cloudflared
+    environment: qa
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+      environment: qa

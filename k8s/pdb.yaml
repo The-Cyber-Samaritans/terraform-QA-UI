@@ -1,0 +1,17 @@
+# =============================================================================
+# QA UI PodDisruptionBudget
+# =============================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: qa-ui-pdb
+  namespace: ns-qa
+  labels:
+    app: qa-ui
+    environment: qa
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: qa-ui
+      environment: qa

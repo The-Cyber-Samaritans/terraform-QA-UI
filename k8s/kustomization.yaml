@@ -1,0 +1,23 @@
+# =============================================================================
+# Kustomization for QA UI
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ns-qa
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - pdb.yaml
+  - cloudflared.yaml
+
+commonLabels:
+  environment: qa
+  app.kubernetes.io/part-of: intelfoundry
+
+images:
+  - name: ${ECR_REPOSITORY_URL}
+    newName: YOUR_AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/intelfoundry-qa-ui
+    newTag: qa-latest

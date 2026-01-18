@@ -1,0 +1,24 @@
+# =============================================================================
+# QA UI Service
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: qa-ui
+  namespace: ns-qa
+  labels:
+    app: qa-ui
+    environment: qa
+    app.kubernetes.io/name: qa-ui
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: intelfoundry
+spec:
+  selector:
+    app: qa-ui
+    environment: qa
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  type: ClusterIP
